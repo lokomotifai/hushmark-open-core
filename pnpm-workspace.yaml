@@ -1,0 +1,7 @@
+packages:
+  - "packages/gateway"
+  - "packages/sdk-ts"
+  - "packages/shared"
+
+onlyBuiltDependencies:
+  - esbuild
