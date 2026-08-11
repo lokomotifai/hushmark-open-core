@@ -1,42 +1,83 @@
-# Hushmark
+<div align="center">
 
-Hushmark is a Turkish-first, on-premise PII detection and reversible masking gateway for LLM
-traffic. It detects deterministic Turkish identifiers and model-owned entity spans, applies a
-policy before forwarding, and restores placeholders in supported provider responses.
+# Hushmark Open Core
 
-Reversible masking is a technical security measure, not anonymization and not a legal-compliance
-guarantee. Detection can miss or misclassify content; evaluate the committed benchmark and your
-own representative data before production use.
+**The source-only detector, gateway, SDK, benchmark, and taxonomy release for Hushmark.**
 
-## Open-core surfaces
+[![CI](https://img.shields.io/github/actions/workflow/status/hushmark/hushmark-open-core/ci.yml?branch=main&label=CI)](https://github.com/hushmark/hushmark-open-core/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/hushmark/hushmark-open-core?label=release)](https://github.com/hushmark/hushmark-open-core/releases/latest)
+[![License](https://img.shields.io/github/license/hushmark/hushmark-open-core)](LICENSE)
 
-- `core/`: FastAPI detection and masking authority.
-- `packages/gateway/`: OpenAI and Anthropic compatible proxy with streaming restoration.
-- `packages/sdk-ts/` and `sdk-py/`: TypeScript and Python clients.
-- `bench/`: reproducible Turkish synthetic benchmark and model pipeline.
-- `taxonomy/`: the closed v0.1 entity taxonomy.
+[English](README.md) · [Türkçe](README.tr.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 
-The console, persistent encrypted vault, RBAC, audit evidence, offline commercial licensing, and
-Tedbir report are enterprise surfaces and are not part of the extracted open-core source tree.
+</div>
 
-## Start locally
+Hushmark keeps sensitive Turkish data inside your control boundary before requests reach an AI
+provider. It detects deterministic identifiers and model-owned spans, applies an explicit policy,
+masks supported values with scoped placeholders, and restores supported provider responses.
 
-Prerequisites are Node.js 22, pnpm 9, Python 3.12, uv, and Docker.
-The adopted `hushmark-tr` artifact is distributed separately from source; install the
-verified artifact under `models/hushmark-tr/` or use the air-gap bundle. Bootstrap verifies its
-pinned FP32 ONNX graph and never regenerates a production model implicitly.
+> [!IMPORTANT]
+> Reversible masking is a technical security measure—not anonymization, legal advice, or a
+> compliance guarantee. Detection can miss or misclassify content. Evaluate Hushmark against
+> representative data before production use.
+
+## What this repository is
+
+This repository is an allowlist-generated, source-only release mirror of the public runtime in
+[`hushmark/hushmark`](https://github.com/hushmark/hushmark), the canonical development repository.
+It contains no adopted model weights, private evaluation corpora, console, persistent vault, RBAC,
+audit evidence, license issuer, or deployment secrets.
+
+| Path                     | Purpose                                               |
+| ------------------------ | ----------------------------------------------------- |
+| `core/`                  | FastAPI Turkish PII detection and masking authority   |
+| `packages/gateway/`      | OpenAI- and Anthropic-compatible gateway              |
+| `packages/sdk-ts/`       | TypeScript client helpers                             |
+| `sdk-py/`                | Python client                                         |
+| `packages/shared/`       | Public schemas and taxonomy types                     |
+| `bench/` and `taxonomy/` | Synthetic benchmark pipeline and closed v0.1 taxonomy |
+
+## Verify the source tree
+
+Prerequisites: Node.js 22, pnpm 9, Python 3.12, and uv.
 
 ```bash
+git clone https://github.com/hushmark/hushmark-open-core.git
+cd hushmark-open-core
 ./scripts/bootstrap.sh
 ./scripts/verify.sh
-docker compose -f deploy/docker/compose.yaml -f deploy/docker/compose.dev.yaml up -d
 ```
 
-See [Compose installation](docs/install-compose.md), [Helm installation](docs/install-helm.md),
-[air-gap installation](docs/install-airgap.md), and the [security model](docs/security.md).
+The adopted `hushmark-tr` model is distributed separately and verified by checksum. It is not
+downloaded or regenerated implicitly. Tests that require production weights are clearly reported
+and omitted from the source-only verification path.
 
-## License intent
+Published clients and runtime packages can be installed independently:
 
-Each package carries its own license file. Open-core packages are Apache-2.0 and are released from
-the `hushmark/hushmark-open-core` mirror. Enterprise packages remain proprietary. Published
-artifacts include cryptographic provenance and should be verified before deployment.
+```bash
+pip install hushmark-core hushmark-sdk
+npm install @hushmark/ai-sdk @hushmark/shared
+```
+
+See [`core/README.md`](core/README.md), [`sdk-py/README.md`](sdk-py/README.md), and
+[`packages/sdk-ts/README.md`](packages/sdk-ts/README.md) for component use. Full Compose, production,
+and console deployment sources live in the canonical repository.
+
+## Release boundary
+
+The extraction test refuses symlinks, private path names, model outputs, and a private corpus canary.
+The exact release boundary is code-reviewed in `tools/release` in the canonical repository. This
+mirror should never be used as a destination for private data or model artifacts.
+
+## Project status
+
+Hushmark is an early `0.1.x` release. Synthetic benchmark evidence is useful for regression testing,
+not proof of accuracy on every organization’s traffic. Review the [model card](docs/model-card-hushmark-tr.md),
+[security model](docs/security.md), and [roadmap](ROADMAP.md) before adoption.
+
+## Community and license
+
+The source is available under the [Apache License 2.0](LICENSE). Code changes should target the
+canonical repository so they are preserved by the next extraction; mirror-specific documentation
+and community fixes may be proposed here. See [CONTRIBUTING.md](CONTRIBUTING.md),
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md).
