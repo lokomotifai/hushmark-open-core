@@ -1,0 +1,86 @@
+name: supply-chain
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          python-version: "3.12"
+      - run: ./scripts/bootstrap.sh
+      - run: pnpm audit --audit-level high
+      - name: Audit locked Python dependencies
+        run: |
+          mkdir -p dist
+          uv export --all-packages --no-dev --frozen --no-emit-workspace --format requirements-txt --output-file dist/requirements.txt
+          uvx --from pip-audit==2.9.0 pip-audit --progress-spinner=off --no-deps --disable-pip --requirement dist/requirements.txt
+      - name: Build and inspect release archives
+        run: |
+          mkdir -p dist/npm dist/python
+          pnpm --filter @hushmark/shared build
+          pnpm --filter @hushmark/ai-sdk build
+          pnpm --dir packages/shared pack --pack-destination "$GITHUB_WORKSPACE/dist/npm"
+          pnpm --dir packages/sdk-ts pack --pack-destination "$GITHUB_WORKSPACE/dist/npm"
+          uv build --package hushmark-core --out-dir dist/python/core
+          uv build --package hushmark-sdk --out-dir dist/python/sdk
+          for archive in dist/npm/*.tgz dist/python/*/*.tar.gz; do tar -tzf "$archive"; done
+          python - <<'PY'
+          import tarfile
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+
+          forbidden = {"research", "briefs", "hushmark", "PLAN.md", "PLAN-BRIEF.md", "EXECUTABLE-PLAN-PROMPT.md"}
+
+          def leaked_paths(names: list[str]) -> list[str]:
+              return [name for name in names if any(part in forbidden for part in PurePosixPath(name).parts)]
+
+          for tarball in [*Path("dist/npm").glob("*.tgz"), *Path("dist/python").glob("*/*.tar.gz")]:
+              with tarfile.open(tarball, "r:gz") as archive:
+                  leaked = leaked_paths(archive.getnames())
+                  if leaked:
+                      raise SystemExit(f"forbidden paths in {tarball}: {leaked}")
+          for wheel in Path("dist/python").glob("*/*.whl"):
+              with ZipFile(wheel) as archive:
+                  leaked = leaked_paths(archive.namelist())
+                  if leaked:
+                      raise SystemExit(f"forbidden paths in {wheel}: {leaked}")
+          PY
+      - name: Install Syft and Grype
+        run: |
+          curl -fsSLO https://github.com/anchore/syft/releases/download/v1.50.0/syft_1.50.0_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/anchore/syft/releases/download/v1.50.0/syft_1.50.0_checksums.txt
+          grep 'syft_1.50.0_linux_amd64.tar.gz' syft_1.50.0_checksums.txt | sha256sum --check
+          tar -xzf syft_1.50.0_linux_amd64.tar.gz syft
+          sudo install -m 0755 syft /usr/local/bin/syft
+          curl -fsSLO https://github.com/anchore/grype/releases/download/v0.116.1/grype_0.116.1_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/anchore/grype/releases/download/v0.116.1/grype_0.116.1_checksums.txt
+          grep 'grype_0.116.1_linux_amd64.tar.gz' grype_0.116.1_checksums.txt | sha256sum --check
+          tar -xzf grype_0.116.1_linux_amd64.tar.gz grype
+          sudo install -m 0755 grype /usr/local/bin/grype
+      - name: Generate SBOM and enforce fixed-critical budget
+        run: |
+          syft dir:. -o cyclonedx-json=open-core.cdx.json -o spdx-json=open-core.spdx.json
+          grype sbom:open-core.spdx.json --only-fixed --fail-on critical
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: open-core-release-evidence
+          path: |
+            dist
+            open-core.cdx.json
+            open-core.spdx.json

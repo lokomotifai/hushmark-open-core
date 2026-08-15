@@ -11,6 +11,15 @@ const API_KEY = "hm_k1_1234567890abcdef";
 const SESSION_ID = "019121aa-7c3e-7bbb-9a10-3f6e2b4c9d21";
 
 describe("createHushmark", () => {
+  it("rejects credential-bearing HTTP outside loopback by default", () => {
+    expect(() =>
+      createHushmark({
+        baseUrl: "http://gateway.example.test",
+        apiKey: API_KEY,
+      }),
+    ).toThrow(/must use HTTPS/u);
+  });
+
   it("derives provider URLs and injects only gateway credentials", async () => {
     const baseFetch = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}"));
     const client = createHushmark({
@@ -73,6 +82,28 @@ describe("createHushmark", () => {
       "x-hushmark-session": SESSION_ID,
     });
     expect(middleware.wrapStream).toBeTypeOf("function");
+  });
+
+  it("uses request-scoped sessions by default and stable sessions only when explicitly scoped", async () => {
+    const baseFetch = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}"));
+    const client = createHushmark({
+      baseUrl: "http://localhost:8080",
+      apiKey: API_KEY,
+      fetch: baseFetch,
+    });
+    await client.fetch("http://localhost:8080/v1/chat/completions");
+    await client.fetch("http://localhost:8080/v1/chat/completions");
+    const first = baseFetch.mock.calls[0]?.[0];
+    const second = baseFetch.mock.calls[1]?.[0];
+    if (!(first instanceof Request) || !(second instanceof Request)) {
+      throw new Error("expected Request instances");
+    }
+    expect(first.headers.get("x-hushmark-session")).not.toBe(
+      second.headers.get("x-hushmark-session"),
+    );
+
+    const scoped = client.withSession(SESSION_ID);
+    expect(scoped.sessionId).toBe(SESSION_ID);
   });
 
   it("preserves every AI SDK v7 stream part through wrapStream", async () => {

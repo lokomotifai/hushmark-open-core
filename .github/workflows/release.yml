@@ -1,39 +1,54 @@
 name: release
 
 on:
-  workflow_dispatch:
-    inputs:
-      target:
-        description: Package registry target
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - npm
-          - pypi
+  push:
+    tags: ["v[0-9]*.[0-9]*.[0-9]*"]
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ inputs.target }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  npm:
-    if: ${{ inputs.target == 'all' || inputs.target == 'npm' }}
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Validate immutable release source
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          test "$RELEASE_TAG" = "v0.1.1"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          python-version: "3.12"
+      - run: ./scripts/bootstrap.sh
+      - run: ./scripts/verify.sh
+
+  npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: npm
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -46,43 +61,45 @@ jobs:
           mkdir -p dist/npm
           pnpm --dir packages/shared pack --pack-destination "$GITHUB_WORKSPACE/dist/npm"
           pnpm --dir packages/sdk-ts pack --pack-destination "$GITHUB_WORKSPACE/dist/npm"
-          tar -tzf dist/npm/hushmark-shared-0.1.0.tgz
-          tar -tzf dist/npm/hushmark-ai-sdk-0.1.0.tgz
+          tar -tzf dist/npm/hushmark-shared-0.1.1.tgz
+          tar -tzf dist/npm/hushmark-ai-sdk-0.1.1.tgz
       - name: Publish with npm trusted publishing
         run: |
-          npm publish dist/npm/hushmark-shared-0.1.0.tgz --access public --provenance
-          npm publish dist/npm/hushmark-ai-sdk-0.1.0.tgz --access public --provenance
+          npm publish dist/npm/hushmark-shared-0.1.1.tgz --access public --provenance
+          npm publish dist/npm/hushmark-ai-sdk-0.1.1.tgz --access public --provenance
 
   pypi-core:
-    if: ${{ inputs.target == 'all' || inputs.target == 'pypi' }}
+    needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: pypi-core
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           python-version: "3.12"
       - run: uv build --package hushmark-core --out-dir dist/core
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           packages-dir: dist/core
 
   pypi-sdk:
-    if: ${{ inputs.target == 'all' || inputs.target == 'pypi' }}
+    needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: pypi-sdk
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           python-version: "3.12"
       - run: uv build --package hushmark-sdk --out-dir dist/sdk
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           packages-dir: dist/sdk

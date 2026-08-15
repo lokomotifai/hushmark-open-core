@@ -4,6 +4,8 @@
 
 All request bodies are validated. Provider routes require
 `Authorization: Bearer <gateway-key>`.
+Core `/v1/*` routes require the configured service bearer token when core is
+network-exposed.
 Admin routes use the local session cookie and RBAC. Error bodies use `error.code` and
 `error.message`; malformed input is `HM-4001`.
 
@@ -15,7 +17,7 @@ Admin routes use the local session cookie and RBAC. Error bodies use `error.code
 | POST   | `/admin/api-keys`        | Create an API key.                                        |
 | DELETE | `/admin/api-keys/:id`    | Revoke an API key.                                        |
 | GET    | `/admin/audit/events`    | Page through no-value audit events.                       |
-| GET    | `/admin/audit/export`    | Export audit NDJSON.                                      |
+| POST   | `/admin/audit/export`    | Export audit NDJSON.                                      |
 | GET    | `/admin/audit/verify`    | Verify the current audit chain.                           |
 | POST   | `/admin/auth/login`      | Create a local admin session.                             |
 | POST   | `/admin/auth/logout`     | Destroy the current admin session.                        |
@@ -26,7 +28,7 @@ Admin routes use the local session cookie and RBAC. Error bodies use `error.code
 | DELETE | `/admin/policies/:id`    | Delete a policy.                                          |
 | GET    | `/admin/providers`       | List provider configuration metadata.                     |
 | POST   | `/admin/providers`       | Update provider configuration metadata.                   |
-| GET    | `/admin/reports/tedbir`  | Generate an entitled Tedbir PDF.                          |
+| POST   | `/admin/reports/tedbir`  | Generate an entitled Tedbir PDF.                          |
 | POST   | `/admin/vault/resolve`   | Role-gated placeholder resolution.                        |
 | GET    | `/healthz`               | Process liveness; no authentication.                      |
 | GET    | `/readyz`                | Readiness, including the gateway's transitive core check. |
@@ -38,11 +40,11 @@ Admin routes use the local session cookie and RBAC. Error bodies use `error.code
 
 ## Provider request schemas
 
-OpenAI top-level schema fields: `model`, `stream`, `messages`.
+OpenAI top-level schema fields: `model`, `stream`, `messages`, `frequency_penalty`, `logit_bias`, `logprobs`, `max_completion_tokens`, `max_tokens`, `metadata`, `modalities`, `n`, `parallel_tool_calls`, `prediction`, `presence_penalty`, `reasoning_effort`, `response_format`, `seed`, `service_tier`, `stop`, `store`, `stream_options`, `temperature`, `tool_choice`, `tools`, `top_logprobs`, `top_p`, `user`, `verbosity`, `web_search_options`.
 `model` and `messages` are required; `stream` defaults to false. Text is inspected in
 message content/name and supported tool arguments.
 
-Anthropic top-level schema fields: `model`, `max_tokens`, `stream`, `system`, `messages`.
+Anthropic top-level schema fields: `model`, `max_tokens`, `stream`, `system`, `messages`, `metadata`, `service_tier`, `stop_sequences`, `temperature`, `thinking`, `tool_choice`, `tools`, `top_k`, `top_p`.
 `model`, `max_tokens`, and `messages` are required; `stream` defaults to false. Text is
 inspected in system/message content and supported tool input.
 
