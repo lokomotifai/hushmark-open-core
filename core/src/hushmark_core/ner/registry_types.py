@@ -11,6 +11,9 @@ class ModelSpecLike(Protocol):
     def sha256(self) -> str: ...
 
     @property
+    def size(self) -> int: ...
+
+    @property
     def labels(self) -> dict[str, str]: ...
 
     @property
@@ -24,3 +27,6 @@ class ModelSpecLike(Protocol):
 
     @property
     def onnx_sha256(self) -> str: ...
+
+    @property
+    def runtime_files(self) -> tuple[tuple[str, int, str], ...]: ...

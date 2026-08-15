@@ -16,6 +16,7 @@ export const EnvSchema = z
       .transform((value) => value.split(",").map((key) => key.trim()))
       .pipe(z.array(ApiKeySchema).min(1)),
     HUSHMARK_CORE_URL: z.url().default("http://127.0.0.1:8000"),
+    HUSHMARK_CORE_SERVICE_TOKEN: z.string().min(32).optional(),
     HUSHMARK_OPENAI_UPSTREAM: z.url(),
     HUSHMARK_ANTHROPIC_UPSTREAM: z.url(),
     HUSHMARK_OPENAI_API_KEY: z.string().min(1).optional(),
@@ -23,6 +24,30 @@ export const EnvSchema = z
     HUSHMARK_POLICY_PATH: z.string().default("packages/gateway/policy.yaml"),
     HUSHMARK_VAULT_MAX_ENTRIES: z.coerce.number().int().positive().default(100_000),
     HUSHMARK_VAULT_TTL_SEC: z.coerce.number().int().positive().default(86_400),
+    HUSHMARK_UNMASK_LIMIT: z.coerce.number().int().positive().max(1_000).default(100),
+    HUSHMARK_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+    HUSHMARK_RATE_LIMIT_WINDOW_SEC: z.coerce.number().int().positive().default(60),
+    HUSHMARK_BODY_LIMIT_BYTES: z.coerce.number().int().positive().default(1_048_576),
+    HUSHMARK_UPSTREAM_MAX_RESPONSE_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1_024)
+      .max(67_108_864)
+      .default(8_388_608),
+    HUSHMARK_UPSTREAM_BODY_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(600_000)
+      .default(60_000),
+    HUSHMARK_STREAM_MAX_BUFFER_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1_024)
+      .max(16_777_216)
+      .default(1_048_576),
+    HUSHMARK_STREAM_MAX_STATES: z.coerce.number().int().min(1).max(1_024).default(128),
+    HUSHMARK_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(4).default(0),
   })
   .strict();
 

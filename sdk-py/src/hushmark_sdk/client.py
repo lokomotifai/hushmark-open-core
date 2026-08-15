@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
@@ -43,14 +44,21 @@ class Hushmark:
         core_url: str,
         gateway_url: str,
         api_key: str,
+        core_service_token: str | None = None,
         timeout: float = 10.0,
         transport: httpx.BaseTransport | None = None,
+        allow_insecure_http: bool = False,
     ) -> None:
-        self._core_url = _normalize_url(core_url)
-        self._gateway_url = _normalize_url(gateway_url)
+        self._core_url = _normalize_url(core_url, allow_insecure_http=allow_insecure_http)
+        self._gateway_url = _normalize_url(gateway_url, allow_insecure_http=allow_insecure_http)
         if not api_key.startswith("hm_k1_") or len(api_key) <= len("hm_k1_"):
             raise ValueError("api_key must be a non-empty hm_k1_ gateway key")
         self._api_key = api_key
+        if core_service_token is not None and len(core_service_token) < 32:
+            raise ValueError("core_service_token must contain at least 32 characters")
+        self._core_headers = (
+            {} if core_service_token is None else {"authorization": f"Bearer {core_service_token}"}
+        )
         self._client = httpx.Client(timeout=timeout, transport=transport)
 
     def analyze(
@@ -63,7 +71,9 @@ class Hushmark:
         payload: dict[str, object] = {"items": list(items), "language": language}
         if session is not None:
             payload["session"] = session
-        result = self._request_json("POST", f"{self._core_url}/v1/analyze", json=payload)
+        result = self._request_json(
+            "POST", f"{self._core_url}/v1/analyze", json=payload, headers=self._core_headers
+        )
         _validate_core_response(result, "entities")
         return cast(AnalyzeResponse, result)
 
@@ -86,7 +96,9 @@ class Hushmark:
         }
         if session is not None:
             payload["session"] = session
-        result = self._request_json("POST", f"{self._core_url}/v1/mask", json=payload)
+        result = self._request_json(
+            "POST", f"{self._core_url}/v1/mask", json=payload, headers=self._core_headers
+        )
         _validate_core_response(result, "mappings")
         return cast(MaskResponse, result)
 
@@ -141,11 +153,25 @@ class Hushmark:
         return cast(dict[str, Any], payload)
 
 
-def _normalize_url(value: str) -> str:
+def _normalize_url(value: str, *, allow_insecure_http: bool) -> str:
     url = httpx.URL(value)
     if url.scheme not in {"http", "https"} or not url.host:
         raise ValueError("service URLs must be absolute HTTP(S) URLs")
+    if url.scheme == "http" and not allow_insecure_http and not _is_loopback(url.host):
+        raise ValueError(
+            "non-loopback service URLs must use HTTPS; set allow_insecure_http only for "
+            "isolated development"
+        )
     return str(url).rstrip("/")
+
+
+def _is_loopback(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _error_from_response(response: httpx.Response) -> HushmarkError:

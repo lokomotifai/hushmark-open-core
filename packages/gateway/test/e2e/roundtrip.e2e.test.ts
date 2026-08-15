@@ -29,6 +29,31 @@ describe("provider round-trip", () => {
     expect(readiness.json()).toEqual({ status: "ready" });
   });
 
+  it("returns HM-4290 after the configured authenticated request budget is exhausted", async () => {
+    await app.close();
+    const config = { ...testConfig(), HUSHMARK_RATE_LIMIT_MAX: 1 };
+    app = buildServer({
+      config,
+      policy: testPolicy(),
+      core: new FakeCore(),
+      upstream,
+      rateLimiter: { consume: () => true },
+    });
+    const request = () =>
+      app.inject({
+        method: "POST",
+        url: "/v1/chat/completions",
+        headers: { authorization: `Bearer ${API_KEY}` },
+        payload: { model: "test", messages: [{ role: "user", content: "Merhaba" }] },
+      });
+    expect((await request()).statusCode).toBe(200);
+    const limited = await request();
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: { code: "HM-4290" } });
+    expect((await app.inject({ method: "GET", url: "/healthz" })).statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/healthz" })).statusCode).toBe(200);
+  });
+
   it.each([
     ["openai", false],
     ["openai", true],
